@@ -438,6 +438,26 @@ class Writer(object):
     def flush(self):
         self.file.flush()
 
+def system_has_ipv6() -> bool:
+    # On Windows, the E* constants will use the WSAE* values
+    # So no need to hardcode an opaque integer in the sets.
+    _ADDR_NOT_AVAIL = {errno.EADDRNOTAVAIL, errno.EAFNOSUPPORT}
+    _ADDR_IN_USE = {errno.EADDRINUSE}
+
+    if not has_ipv6:
+        return False
+    try:
+        with socket.socket(socket.AF_INET6, socket.SOCK_STREAM) as sock:
+            sock.bind(("::1", 0))
+        return True
+    except OSError as e:
+        if e.errno in _ADDR_NOT_AVAIL:
+            return False
+        if e.errno in _ADDR_IN_USE:
+            # This point shouldn't ever be reached. But just in case...
+            return True
+        # Other errors should be inspected
+        raise
 
 if __name__ == '__main__':
     if len(sys.argv) < 2:
@@ -447,7 +467,7 @@ if __name__ == '__main__':
     p = int(sys.argv[1])
     logging.info("start at port %s" % (p))
     # Make it compatible with IPv6 if Linux
-    if sys.platform == "linux":
+    if sys.platform == "linux" and system_has_ipv6:
         app.run(host='::', port=p, debug=True, threaded=True)
     else:
         app.run(host='0.0.0.0', port=p, debug=True, threaded=True)
